@@ -14,9 +14,8 @@ klase:
         #service
         
 """
-
+import numpy as np
 class Emissions:
-    import numpy as np
     def __init__(self):
         self.test = 'pass'
           
@@ -32,12 +31,32 @@ class Emissions:
 
         """
         if type(time_steps) == 'int':
-            time_steps = np.arange(time_steps)
+            self.time_steps = np.arange(time_steps)
+    
+    def addEmissionTrend(self, time_steps, tonnes_CO2):
+        
+    
+    
             
 class Industry(Emissions):
     def __init__(self):
         pass
     
+class BECCS(Emissions):
+    def __init__(self):
+        pass
+
+class CarbonFarm(Emissions):
+    def __init__(self):
+        pass
+    
+class StorageOperator(Emissions):
+    def __init__(self):
+        pass
+    
+class Transport(Emissions):
+    def __init__(self):
+        pass
          
         
 
