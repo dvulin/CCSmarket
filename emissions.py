@@ -12,8 +12,9 @@ class Emissions(object):
     """
     allowance_EUA_price = 85.0              # fixed for each time_step *** DA LI STAVITI DA NEKI KUPUJU CO2 U STARTU ISPOD OVE CIJENE?
     domestic_CO2_price = 85.0               # domestic CO2 price should decrease as sellers appear
-    total_free_allowances = 5e6             # tCO2 = trading volume
+    trading_volume = 5e6             # tCO2 = trading volume
     time_steps = None
+    trading_history = []                    # all history of trades ([timestep, volume, price])
     
     def __init__(self, ts = np.arange(1,16), cbr = 0.1, ip = 0, mb = 0):     
         self.core_business_r = cbr          # core business interest rate
@@ -22,8 +23,10 @@ class Emissions(object):
         self._reduced_CO2 = None
         self._core_cash_flow = None
         self._money_balance = None    # money balance (used for more specific profitability analysis)
+        self._allowance_wallet = 0
+              
         self.setTimeSteps(ts)
-        
+      
     @classmethod
     def setTimeSteps(cls, values):
         if type(values) == int:
@@ -36,13 +39,17 @@ class Emissions(object):
         cls.allowance_EUA_price = values
     
     @classmethod
-    def setDomesticCO2Price(cls, values):
-        cls.domestic_CO2_price = values
+    def setDomesticCO2Price(cls, value):
+        cls.domestic_CO2_price = value
     
     @classmethod
-    def setTotalFreeAllowances(cls, values):
-        cls.total_free_allowances = values
-    
+    def setTradingVolume(cls, value):
+        cls.trading_volume = value
+
+    @classmethod
+    def updateTradingHistory(cls, my_list):
+        cls.trading_history.append(my_list)
+        
     """
     @property
     def time_steps(self):
@@ -70,6 +77,7 @@ class Emissions(object):
     
     @reduced_CO2.setter
     def reduced_CO2(self, value):
+        self._alowance_wallet += value
         self._reduced_CO2 = value
            
     @property
@@ -79,6 +87,14 @@ class Emissions(object):
     @free_allowances.setter
     def free_allowances(self, tonnes_CO2):
         self._free_alowances = tonnes_CO2
+        
+    @property
+    def allowance_wallet(self):
+        return self._allowance_wallet
+    
+    @allowance_wallet.setter
+    def allowance_wallet(self, value):
+        self._allowance_wallet = value
     """
     @property
     def allowance_EUA_price(self, price):
@@ -120,11 +136,15 @@ class Emissions(object):
         (1) checks if allowances are available for trading
         (2) adds money to the balance at given time_step
         """
-        if self._free_allowances[time_step] < tonnes_CO2:
-            return 'not enough allowances. transaction unsuccessful'
+        if self._allowance_wallet < tonnes_CO2:
+            return 'not enough allowances in wallet. transaction unsuccessful'
         else:
-            self._free_allowances[time_step] -= tonnes_CO2
+            self._allowance_wallet -= tonnes_CO2
             self._money_balance[time_step] += tonnes_CO2*unit_price
+            ### TODO: prilagoditi cijenu domestic_CO2_price ovisno o prodanoj kolicini
+            self.setDomesticCO2Price()
+            self.updateTradingHistory([time_step, tonnes_CO2, unit_price])
+            
         return ("""sold {tCO2} allowances for {up} per 1t of CO2.
                     balance increased for {total} at timestep {ts}.
                 """.format(tCO2 = tonnes_CO2, up = unit_price, total = tonnes_CO2*unit_price, ts = time_step))
