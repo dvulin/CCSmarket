@@ -77,7 +77,7 @@ class Emissions(object):
     
     @reduced_CO2.setter
     def reduced_CO2(self, value):
-        self._alowance_wallet += value
+        self._allowance_wallet += value
         self._reduced_CO2 = value
            
     @property
@@ -160,11 +160,14 @@ class Emissions(object):
                 """.format(tCO2 = tonnes_CO2, up = unit_price, total = tonnes_CO2*unit_price, ts = time_step))    
     
     @property
+    def core_cash_flow(self):
+        return (self._core_cash_flow)
+    
+    @core_cash_flow.setter
     def core_cash_flow(self, value):
         self._core_cash_flow = value
               
-    @core_cash_flow.setter
-    def core_cash_flow(self, CAPEX, OPEX, income, r):
+    def calculateCoreCashFlow(self, CAPEX, OPEX, income, r):
         """
         Parameters
         ----------
@@ -182,13 +185,13 @@ class Emissions(object):
         """
         import numpy_financial as npf
         if type(CAPEX) == int:
-            _CAPEX = np.ones(len(self.time_steps))      # if it is not array, CAPEX appears only at first time_step
-            _CAPEX[0] = CAPEX                           # meaning there are no reinvestments
+            CAPEX = np.ones(len(self.time_steps))      # if it is not array, CAPEX appears only at first time_step
+            CAPEX[0] = CAPEX                           # meaning there are no reinvestments
         if type(OPEX) == int:
-            _OPEX = np.ones(len(self.time_steps))*OPEX  # if it is not array, OPEX is constant through the time
+            OPEX = np.ones(len(self.time_steps))*OPEX  # if it is not array, OPEX is constant through the time
         if type(income) == int:
-            _income = np.ones(len(self.time_steps))*income
-        cf = _income - (_CAPEX + _OPEX)
+            income = np.ones(len(self.time_steps))*income
+        cf = income - (CAPEX + OPEX)
         self._core_cash_flow = npf.pv(r, np.arange(len(self.time_steps)), 0, -cf )
         
     def trendModel(self, time_series, initial, change, model = 'linear'):
@@ -243,10 +246,6 @@ e.setAllowanceEUAPrice(e.trendModel(time_series = e.time_steps,
                               initial = 85., 
                               change = 0.05, 
                               model = 'percent'))
-e.setTotalFreeAllowances(e.trendModel(time_series = e.time_steps, 
-                              initial = 5E6, 
-                              change = -0.1, 
-                              model = 'percent'))
 
 ina = Industry()
 ina.released_CO2 = e.trendModel(time_series = ina.time_steps, 
@@ -265,13 +264,11 @@ ina.free_allowances = e.trendModel(time_series = ina.time_steps,
                               initial = 300000, 
                               change = -0.1, 
                               model = 'percent')
+
+# iz https://www.poslovni.hr/kompanije/neto-dobit-ine-u-prvom-kvartalu-znatno-veca-nego-lani-4334651
+ina_neto_prihod = 4*6.24E9/7.54                 #eur, u 2022., na tamelju kvartala
+ina.CAPEX = 4*846e6/7.54           
+ina_neto_dobit = 4*586e6/7.54                   # na temelju kvartalne dobiti
+ina.OPEX = (ina_neto_prihod-ina_neto_dobit-ina.CAPEX)
 ina.core_business_r = 0.09
-
-
-"""
-razmisljanja:
-    (1) kad se poveca CO2_reduced - total free allowances se poveca?
-    (2) cini se da su za razlicite dionike potrebna razlicita pravila otkupa - vise nego li je razlika y = released_CO2 - free_allowances
-    (3) kad netko vise skladisti, nego emitira, on prodaje koliko ima, a oni koji nemaju skladistenje, 
-        nego samo trguju, mogu trgovati jedino s razlikom y
-"""
+ina.calculateCoreCashFlow(ina.CAPEX, ina.OPEX, ina_neto_prihod, ina.core_business_r)
