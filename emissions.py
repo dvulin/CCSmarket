@@ -10,13 +10,17 @@ class Emissions(object):
     """
     some variables shared at class level - for all instances (objects)
     """
-    allowance_EUA_price = 85.0              # fixed for each time_step *** DA LI STAVITI DA NEKI KUPUJU CO2 U STARTU ISPOD OVE CIJENE?
-    domestic_CO2_price = 85.0               # domestic CO2 price should decrease as sellers appear
-    trading_volume = 5e6             # tCO2 = trading volume
+    allowance_EUA_price = 80.0              # fixed for each time_step *** DA LI STAVITI DA NEKI KUPUJU CO2 U STARTU ISPOD OVE CIJENE?
+    domestic_CO2_price = 80.0               # domestic CO2 price should decrease as sellers appear
+    trading_volume = []                     # tCO2 = trading volume
     time_steps = None
-    trading_history = []                    # all history of trades ([timestep, volume, price])
+    trading_history = None                  # all history of trades ([timestep, volume, price])
+    token_number = 0
     
-    def __init__(self, ts = np.arange(1,16), cbr = 0.1, ip = 0, mb = 0):     
+    def __init__(self, ts = np.arange(0,30), cbr = 0.1, ip = 0, mb = 0):
+        """
+        
+        """
         self.core_business_r = cbr          # core business interest rate
         self.investment_potential = ip      # money that can be available for new investments
         self._released_CO2 = None
@@ -47,8 +51,12 @@ class Emissions(object):
         cls.trading_volume = value
 
     @classmethod
-    def updateTradingHistory(cls, my_list):
-        cls.trading_history.append(my_list)
+    def updateTradingHistory(cls, values):
+        cls.trading_history.append(values)
+        
+    @classmethod
+    def updateTokenNumber(cls, values):
+        cls.token_number += values
         
     """
     @property
@@ -68,18 +76,22 @@ class Emissions(object):
         return self._released_CO2
     
     @released_CO2.setter
-    def released_CO2(self, value):
-        self._released_CO2 = value
-
+    def released_CO2(self, values):
+        self.updateTokenNumber(values)          # tokens are minted when more CO2 is emitted
+        self._released_CO2 = values
+        self.setDomesticCO2Price(self.domestic_CO2_price - 
+                                 self.domestic_CO2_price*(values/self.token_number.cumsum()))
         
     @property
     def reduced_CO2(self):
         return self._reduced_CO2
     
     @reduced_CO2.setter
-    def reduced_CO2(self, value):
-        self._allowance_wallet += value
-        self._reduced_CO2 = value
+    def reduced_CO2(self, values):
+        self._allowance_wallet += values
+        self._reduced_CO2 = values
+        self.setDomesticCO2Price(self.domestic_CO2_price + 
+                                self.domestic_CO2_price*(values/self.token_number.cumsum()))
            
     @property
     def free_allowances(self):
@@ -87,6 +99,7 @@ class Emissions(object):
     
     @free_allowances.setter
     def free_allowances(self, tonnes_CO2):
+        self.updateTokenNumber(-tonnes_CO2)         # burns tokens and rises token price
         self._free_alowances = tonnes_CO2
         
     @property
@@ -242,24 +255,35 @@ class Transport(Emissions):
     def __init__(self):
         pass
 
+# initialize parent object - it will store general class-level variables:
+    # allowance_EUA_price = 85.0              
+    # domestic_CO2_price = 85.0
+    # trading_volume = 0
+    # time_steps = None
+    # trading_history = []
+    
 e = Emissions()
 e.setAllowanceEUAPrice(e.trendModel(time_series = e.time_steps, 
                               initial = 85., 
                               change = 0.05, 
                               model = 'percent'))
 
-# initialize stakeholders
+
+"----------------------------------------------------------------------------------------------------------"
+# (1) initialize stakeholder
 ina = Industry()
-ina.released_CO2 = e.trendModel(time_series = ina.time_steps, 
-                              initial = 1200, 
-                              change = -0.02, 
-                              model = 'percent')
+
+# (2) initialize timeseries of:
+#   - released_CO2 (emissions)
+#   - reduced_CO2 (stored, sequestered)
+#   - free_allowances (to calculate penalties charged by EUA_price)
+
 ina.released_CO2 = e.trendModel(time_series = ina.time_steps, 
                               initial = 1.2e6, 
                               change = -0.1, 
                               model = 'percent')
 ina.reduced_CO2 = e.trendModel(time_series = ina.time_steps, 
-                              initial = 150000, 
+                              initial = 0.15e6, 
                               change = 0.1, 
                               model = 'percent')
 ina.free_allowances = e.trendModel(time_series = ina.time_steps, 
@@ -276,9 +300,38 @@ ina.OPEX = (ina_neto_prihod-ina_neto_dobit-ina.CAPEX)
 ina.core_business_r = 0.09
 ina.calculateCoreCashFlow(ina.CAPEX, ina.OPEX, ina_neto_prihod, ina.core_business_r)
 
-print (ina.allowance_wallet)
+print (ina.allowance_wallet)        # wallet is initialized for all steps when CO2_reduced is set
 # run simulation
 for i, ts in enumerate(ina.time_steps):
-    if i>0: ina.allowance_wallet[i] += ina.released_CO2[i-1]-ina.released_CO2[i]   #reduction is already included
+    if i>0: ina.allowance_wallet[i] += ina.released_CO2[i-1]-ina.released_CO2[i]   #reduction is already included, this are the emissions
 print (ina.allowance_wallet)
+
+"----------------------------------------------------------------------------------------------------------"
+NEXE = Industry()
+NEXE.released_CO2 = e.trendModel(time_series = NEXE.time_steps, 
+                              initial = 0.7e6, 
+                              change =  0.005, 
+                              model = 'percent')
+NEXE.reduced_CO2 = e.trendModel(time_series = NEXE.time_steps, 
+                              initial = 0.15e6, 
+                              change = 0.0, 
+                              model = 'percent')
+NEXE.free_allowances = e.trendModel(time_series = NEXE.time_steps, 
+                              initial = 250000, 
+                              change = -0.1, 
+                              model = 'percent')
+
+# iz https://www.poslovni.hr/kompanije/neto-dobit-ine-u-prvom-kvartalu-znatno-veca-nego-lani-4334651
+NEXE_neto_prihod = 1*6.24E9/7.54                 #eur, u 2022., na tamelju kvartala
+NEXE.CAPEX = 0.1*846e6/7.54           
+NEXE_neto_dobit = 0.1*586e6/7.54                   # na temelju kvartalne dobiti
+NEXE.OPEX = (NEXE_neto_prihod-NEXE_neto_dobit-ina.CAPEX)
+NEXE.core_business_r = 0.08
+NEXE.calculateCoreCashFlow(NEXE.CAPEX, NEXE.OPEX, NEXE_neto_prihod, NEXE.core_business_r)
+
+print (NEXE.allowance_wallet)        # wallet is initialized for all steps when CO2_reduced is set
+# run simulation
+for i, ts in enumerate(NEXE.time_steps):
+    if i>0: NEXE.allowance_wallet[i] += NEXE.released_CO2[i-1]-NEXE.released_CO2[i]   #reduction is already included, this are the emissions
+print (NEXE.allowance_wallet)
                                                        
