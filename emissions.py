@@ -23,7 +23,7 @@ class Emissions(object):
         self._reduced_CO2 = None
         self._core_cash_flow = None
         self._money_balance = None    # money balance (used for more specific profitability analysis)
-        self._allowance_wallet = 0
+        self._allowance_wallet = 0    # array, CO2 for trading (1t CO2 in wallet = 1 token)
               
         self.setTimeSteps(ts)
       
@@ -70,6 +70,7 @@ class Emissions(object):
     @released_CO2.setter
     def released_CO2(self, value):
         self._released_CO2 = value
+
         
     @property
     def reduced_CO2(self):
@@ -136,10 +137,10 @@ class Emissions(object):
         (1) checks if allowances are available for trading
         (2) adds money to the balance at given time_step
         """
-        if self._allowance_wallet < tonnes_CO2:
+        if self._allowance_wallet.cumsum()[time_step] < tonnes_CO2:
             return 'not enough allowances in wallet. transaction unsuccessful'
         else:
-            self._allowance_wallet -= tonnes_CO2
+            self._allowance_wallet[time_step] -= tonnes_CO2
             self._money_balance[time_step] += tonnes_CO2*unit_price
             ### TODO: prilagoditi cijenu domestic_CO2_price ovisno o prodanoj kolicini
             self.setDomesticCO2Price()
@@ -247,6 +248,7 @@ e.setAllowanceEUAPrice(e.trendModel(time_series = e.time_steps,
                               change = 0.05, 
                               model = 'percent'))
 
+# initialize stakeholders
 ina = Industry()
 ina.released_CO2 = e.trendModel(time_series = ina.time_steps, 
                               initial = 1200, 
@@ -265,6 +267,7 @@ ina.free_allowances = e.trendModel(time_series = ina.time_steps,
                               change = -0.1, 
                               model = 'percent')
 
+
 # iz https://www.poslovni.hr/kompanije/neto-dobit-ine-u-prvom-kvartalu-znatno-veca-nego-lani-4334651
 ina_neto_prihod = 4*6.24E9/7.54                 #eur, u 2022., na tamelju kvartala
 ina.CAPEX = 4*846e6/7.54           
@@ -272,3 +275,6 @@ ina_neto_dobit = 4*586e6/7.54                   # na temelju kvartalne dobiti
 ina.OPEX = (ina_neto_prihod-ina_neto_dobit-ina.CAPEX)
 ina.core_business_r = 0.09
 ina.calculateCoreCashFlow(ina.CAPEX, ina.OPEX, ina_neto_prihod, ina.core_business_r)
+
+print (ina.allowance_wallet)
+                                                       
