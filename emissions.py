@@ -277,4 +277,8 @@ ina.core_business_r = 0.09
 ina.calculateCoreCashFlow(ina.CAPEX, ina.OPEX, ina_neto_prihod, ina.core_business_r)
 
 print (ina.allowance_wallet)
+# run simulation
+for i, ts in enumerate(ina.time_steps):
+    if i>0: ina.allowance_wallet[i] += ina.released_CO2[i-1]-ina.released_CO2[i]   #reduction is already included
+print (ina.allowance_wallet)
                                                        
