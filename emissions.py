@@ -208,11 +208,12 @@ class Emissions(object):
         cf = income - (CAPEX + OPEX)
         self._core_cash_flow = npf.pv(r, np.arange(len(self.time_steps)), 0, -cf )
         
-    def geometricBrownianMotion(time_horizon = 30, n_time_steps = 30, initial_value = 0):
+    def geometricBrownianMotion(self, time_horizon = 30, n_time_steps = 30, initial_value = 0):
         times = np.linspace(0, time_horizon, n_time_steps)
         dt = times[1] - times [0]
-        dB = np.random.normal(size=(n_time_steps - 1)) * dt**0.5
-        GBM = np.concatenate([np.array([initial_value]), dB])
+        dB = np.random.normal(size=(n_time_steps)) * dt**0.5
+        GBM = dB*initial_value
+        GBM[0] = initial_value[0]
         return (GBM)
         
     def trendModel(self, time_series, initial, change, model = 'linear'):
