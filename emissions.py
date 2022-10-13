@@ -208,13 +208,42 @@ class Emissions(object):
         cf = income - (CAPEX + OPEX)
         self._core_cash_flow = npf.pv(r, np.arange(len(self.time_steps)), 0, -cf )
         
-    def geometricBrownianMotion(self, time_horizon = 30, n_time_steps = 30, initial_value = 0):
-        times = np.linspace(0, time_horizon, n_time_steps)
-        dt = times[1] - times [0]
-        dB = np.random.normal(size=(n_time_steps)) * dt**0.5
-        GBM = dB*initial_value
-        GBM[0] = initial_value[0]
+    def geometricBrownianMotion(self, time_horizon= 30, n_time_steps = 30, initial_value = 0, sigma = 0.8, mu = 0):
+        dt = time_horizon/n_time_steps
+        vty = np.exp((mu - sigma ** 2 / 2) * dt 
+                     + sigma * np.random.normal(0, np.sqrt(dt), 
+                    size=n_time_steps))
+        vty[0] = 1
+        GBM = initial_value*vty.cumprod()
         return (GBM)
+    
+    def fitGeometricBrownianMotion(self, values, dt=1/12, log_returns = False):
+        """
+        Parameters
+        ----------
+        values : np.array(float)
+            historical prices
+        dt : float, optional
+            time period. The default is 1/12 = 1 month.
+        log_returns : True/False, optional
+            if log-returns are used. The default is False.
+        
+        Returns
+        -------
+        mu : float
+            GBM mean = drift
+        sigma : float
+            standard deviation
+        """           
+        if log_returns:
+            ri = np.log(values[1:]/values[:-1])         # log returns
+        else:
+            ri = (values[1:]-values[:-1])/values[:-1]    # returns
+        m = np.mean(ri)                                 # mean
+        v = np.sum((ri-m)**2)/(len(ri)-1)*dt            # variance
+        sigma = v**0.5                                  # standard deviation
+        mu = m+v/2       
+        return (mu, sigma)
         
     def trendModel(self, time_series, initial, change, model = 'linear'):
         """
@@ -229,9 +258,8 @@ class Emissions(object):
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
-
+        numpy array
+            trend values.
         """
         p = [] 
         if model == 'percent':
@@ -308,11 +336,11 @@ ina.OPEX = (ina_neto_prihod-ina_neto_dobit-ina.CAPEX)
 ina.core_business_r = 0.09
 ina.calculateCoreCashFlow(ina.CAPEX, ina.OPEX, ina_neto_prihod, ina.core_business_r)
 
-print (ina.allowance_wallet)        # wallet is initialized for all steps when CO2_reduced is set
+# print (ina.allowance_wallet)        # wallet is initialized for all steps when CO2_reduced is set
 # run simulation
 for i, ts in enumerate(ina.time_steps):
     if i>0: ina.allowance_wallet[i] += ina.released_CO2[i-1]-ina.released_CO2[i]   #reduction is already included, this are the emissions
-print (ina.allowance_wallet)
+# print (ina.allowance_wallet)
 
 "----------------------------------------------------------------------------------------------------------"
 NEXE = Industry()
@@ -337,9 +365,24 @@ NEXE.OPEX = (NEXE_neto_prihod-NEXE_neto_dobit-ina.CAPEX)
 NEXE.core_business_r = 0.08
 NEXE.calculateCoreCashFlow(NEXE.CAPEX, NEXE.OPEX, NEXE_neto_prihod, NEXE.core_business_r)
 
-print (NEXE.allowance_wallet)        # wallet is initialized for all steps when CO2_reduced is set
+# print (NEXE.allowance_wallet)        # wallet is initialized for all steps when CO2_reduced is set
 # run simulation
 for i, ts in enumerate(NEXE.time_steps):
     if i>0: NEXE.allowance_wallet[i] += NEXE.released_CO2[i-1]-NEXE.released_CO2[i]   #reduction is already included, this are the emissions
-print (NEXE.allowance_wallet)
-                                                       
+# print (NEXE.allowance_wallet)
+
+import yfinance as yf
+ticker = yf.Ticker("CO2.L")
+h_CO2_price = ticker.history(start = "2018-12-31", end = "2022-10-13", interval = '1mo')['Close']
+mu, sigma = e.fitGeometricBrownianMotion(dt = 1/12, values = h_CO2_price.to_numpy(), log_returns = False)
+paths = []
+for i in range(50000):
+    paths.append(e.geometricBrownianMotion(time_horizon = 30, 
+                                           n_time_steps = 30, 
+                                           initial_value = 70., 
+                                           sigma = sigma, mu = mu))
+paths = np.array(paths).T
+ppath = np.percentile(paths, q = [5, 25, 50, 75, 95], axis=1)
+import matplotlib.pyplot as plt
+plt.plot(ppath.T)
+plt.legend(['p5', 'p25', 'p50', 'p75', 'p95'])
