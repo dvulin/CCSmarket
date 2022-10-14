@@ -371,18 +371,52 @@ for i, ts in enumerate(NEXE.time_steps):
     if i>0: NEXE.allowance_wallet[i] += NEXE.released_CO2[i-1]-NEXE.released_CO2[i]   #reduction is already included, this are the emissions
 # print (NEXE.allowance_wallet)
 
-import yfinance as yf
-ticker = yf.Ticker("CO2.L")
-h_CO2_price = ticker.history(start = "2018-12-31", end = "2022-10-13", interval = '1mo')['Close']
-mu, sigma = e.fitGeometricBrownianMotion(dt = 1/12, values = h_CO2_price.to_numpy(), log_returns = False)
-paths = []
-for i in range(50000):
-    paths.append(e.geometricBrownianMotion(time_horizon = 30, 
-                                           n_time_steps = 30, 
-                                           initial_value = 70., 
-                                           sigma = sigma, mu = mu))
-paths = np.array(paths).T
-ppath = np.percentile(paths, q = [5, 25, 50, 75, 95], axis=1)
-import matplotlib.pyplot as plt
-plt.plot(ppath.T)
-plt.legend(['p5', 'p25', 'p50', 'p75', 'p95'])
+
+"""
+example of GBM fitting
+- number of values should be checked in historical data (h_CO2_price)) in order to correctly define dt
+- drift might vary a lot, depending on time-window used ("1d". "1mo")
+
+for CO2, we took daily closing price and got the results:
+mu, sigma =  (0.001117098100358904, 0.00227731379179647)
+
+optimal time window for similar analyses has been prposed in:
+    Vulin, D., Arnaut, M., & Karasalihović Sedlar, D. (2020). 
+    Forecast of long‐term EUA price probability using momentum strategy and GBM simulation. 
+    Greenhouse Gases: Science and Technology, 10(1), 230-248.
+"""
+# import yfinance as yf
+# ticker = yf.Ticker("CO2.L")
+# h_CO2_price = ticker.history(start = "2018-12-31", end = "2022-10-13", interval = '1d')['Close']
+# mu, sigma = e.fitGeometricBrownianMotion(dt = 1/248, values = h_CO2_price.to_numpy(), log_returns = False)
+# paths = []
+# for i in range(50000):
+#     paths.append(e.geometricBrownianMotion(time_horizon = 30, 
+#                                            n_time_steps = 30, 
+#                                            initial_value = 70., 
+#                                            sigma = sigma, mu = mu))
+# paths = np.array(paths).T
+# ppath = np.percentile(paths, q = [5, 25, 50, 75, 95], axis=1)
+# import matplotlib.pyplot as plt
+# plt.plot(ppath.T)
+# plt.legend(['p5', 'p25', 'p50', 'p75', 'p95'])
+
+import pandas as pd
+input = pd.read_excel('input.xlsx', sheet_name=None)
+stakeholders = []
+gi_columns = ['variable', 'value', 'comment']
+ts_columns = ['year','released_CO2','reduced_CO2','free_allowances','core_cash_flow']
+for name, sheet in input.items():
+    stakeholders.append({'sheet_name':name, 
+                        'gi' : input[name][gi_columns].dropna(axis='rows').set_index('variable'),
+                        'ts' : input[name][ts_columns].dropna(axis='columns')
+                    })
+
+# after all inputs are loaded they can be accessed as list elements:
+stakeholders[0]['gi'].loc['r']['value']
+
+"""
+gi is general information table, and r value is called
+ts is time series value
+"""
+
