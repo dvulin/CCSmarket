@@ -245,16 +245,18 @@ class Emissions(object):
         mu = m+v/2       
         return (mu, sigma)
         
-    def trendModel(self, time_series, initial, change, model = 'linear'):
+    def trendModel(self, time_series, initial, change, start = 0, model = 'linear'):
         """
         Parameters
         ----------
-        time_series : array
-            DESCRIPTION.
+        time_series : numpy array
+            years.
         initial : TYPE
             initial value.
-        percent_change : float
+        change : float
             percent change is defined as part of 1, eg. 2% reduction each timestep = -0.02
+        start : int
+            start year for a model
 
         Returns
         -------
@@ -264,12 +266,13 @@ class Emissions(object):
         p = [] 
         if model == 'percent':
             for i, t in enumerate(time_series):
-                p.append(initial*(1+change)**i)
-            return (np.array(p))
+                p.append(initial*(1+change)**(i-start))
         if model == 'linear':
             for i, t in enumerate(time_series):
-                p.append(initial+change*i)
-            return (np.array(p))       
+                p.append(initial+change*(i-start))
+        p = np.array(p)
+        if start > 0: p[:start] = 0
+        return (p)       
             
 class Industry(Emissions):
     def __init__(self):
@@ -317,15 +320,15 @@ ina = Industry()
 ina.released_CO2 = e.trendModel(time_series = ina.time_steps, 
                               initial = 1.2e6, 
                               change = -0.1, 
-                              model = 'percent')
+                              start = 0, model = 'percent')
 ina.reduced_CO2 = e.trendModel(time_series = ina.time_steps, 
                               initial = 0.15e6, 
                               change = 0.1, 
-                              model = 'percent')
+                              start = 0, model = 'percent')
 ina.free_allowances = e.trendModel(time_series = ina.time_steps, 
                               initial = 300000, 
                               change = -0.1, 
-                              model = 'percent')
+                              start = 0, model = 'percent')
 
 
 # iz https://www.poslovni.hr/kompanije/neto-dobit-ine-u-prvom-kvartalu-znatno-veca-nego-lani-4334651
@@ -347,15 +350,15 @@ NEXE = Industry()
 NEXE.released_CO2 = e.trendModel(time_series = NEXE.time_steps, 
                               initial = 0.7e6, 
                               change =  0.005, 
-                              model = 'percent')
-NEXE.reduced_CO2 = e.trendModel(time_series = NEXE.time_steps, 
+                              start = 0, model = 'percent')
+NEXE.reduced_CO2 = e.trendModel(start = 3, time_series = NEXE.time_steps, 
                               initial = 0.15e6, 
                               change = 0.0, 
                               model = 'percent')
 NEXE.free_allowances = e.trendModel(time_series = NEXE.time_steps, 
                               initial = 250000, 
                               change = -0.1, 
-                              model = 'percent')
+                              start = 0, model = 'percent')
 
 # iz https://www.poslovni.hr/kompanije/neto-dobit-ine-u-prvom-kvartalu-znatno-veca-nego-lani-4334651
 NEXE_neto_prihod = 1*6.24E9/7.54                 #eur, u 2022., na tamelju kvartala
@@ -406,14 +409,82 @@ input = pd.read_excel('input.xlsx', sheet_name=None)
 stakeholders = []
 gi_columns = ['variable', 'value', 'comment']
 ts_columns = ['year','released_CO2','reduced_CO2','free_allowances','core_cash_flow']
+
+last_year = None
 for name, sheet in input.items():
+    #print (name, sheet)
     stakeholders.append({'sheet_name':name, 
-                        'gi' : input[name][gi_columns].dropna(axis='rows').set_index('variable'),
-                        'ts' : input[name][ts_columns].dropna(axis='columns')
+                        'gi' : input[name][gi_columns].copy().dropna(axis='rows').set_index('variable'), 
+                        'ts' : pd.DataFrame(columns = ts_columns)
                     })
+    print ('\n initializing {stakeholder}, {facility}'.format(
+        stakeholder = stakeholders[-1]['gi'].loc['company']['value'], 
+        facility = stakeholders[-1]['gi'].loc['facility']['value']))
+    if last_year is None: last_year = np.arange(stakeholders[-1]['gi'].loc['last year']['value']+1)
+    if 'year' not in input[name][ts_columns].dropna(axis='columns'):
+        print ('initializing years...')
+        stakeholders[-1]['ts']['year'] = last_year
+    else:
+        stakeholders[-1]['ts'] = input[name][ts_columns].dropna(axis='columns')
+    
+    if 'released_CO2' not in input[name][ts_columns].dropna(axis='columns'):
+        print ('creating released_CO2 variables...')
+        stakeholders[-1]['ts']['released_CO2'] = e.trendModel(time_series = last_year,
+                                      initial = stakeholders[-1]['gi'].loc['released_CO2_initial']['value'], 
+                                      change =  stakeholders[-1]['gi'].loc['released_CO2_change']['value'],
+                                      start = stakeholders[-1]['gi'].loc['released_CO2_start']['value'],
+                                      model = stakeholders[-1]['gi'].loc['released_CO2_model']['value'])
+    else:
+        stakeholders[-1]['ts']['released_CO2'] = input[name]['released_CO2'].copy()
+       
+    if 'reduced_CO2' not in input[name][ts_columns].dropna(axis='columns'):
+        print ('creating reduced_CO2 variables...')
+        stakeholders[-1]['ts']['reduced_CO2'] = e.trendModel(time_series = last_year,
+                                      initial = stakeholders[-1]['gi'].loc['reduced_CO2_initial']['value'], 
+                                      change =  stakeholders[-1]['gi'].loc['reduced_CO2_change']['value'],
+                                      start = stakeholders[-1]['gi'].loc['reduced_CO2_start']['value'],
+                                      model = stakeholders[-1]['gi'].loc['reduced_CO2_model']['value'])
+    else:
+        stakeholders[-1]['ts']['reduced_CO2'] = input[name]['reduced_CO2'].copy()
+        
+    if 'free_allowances' not in input[name][ts_columns].dropna(axis='columns'):
+        print ('creating free_allowances variables...')
+        stakeholders[-1]['ts']['free_allowances'] = e.trendModel(time_series = last_year, 
+                                      initial = stakeholders[-1]['gi'].loc['free_allowances_initial']['value'], 
+                                      change =  stakeholders[-1]['gi'].loc['free_allowances_change']['value'],
+                                      start = stakeholders[-1]['gi'].loc['free_allowances_start']['value'],
+                                      model = stakeholders[-1]['gi'].loc['free_allowances_model']['value'])
+    else:
+        stakeholders[-1]['ts']['free_allowances'] = input[name]['free_allowances'].copy()
+    # free allowances may not be less than zero
+    stakeholders[-1]['ts']['free_allowances'] = np.where(stakeholders[-1]['ts']['free_allowances'] < 0, 0, 
+                                                         stakeholders[-1]['ts']['free_allowances'])
+       
+    if 'core_cash_flow' not in input[name][ts_columns].dropna(axis='columns'):
+        print ('creating core_cash_flow variables...')
+        stakeholders[-1]['ts']['core_cash_flow'] = e.trendModel(time_series = last_year,
+                                      initial = stakeholders[-1]['gi'].loc['core_cash_flow_initial']['value'], 
+                                      change =  stakeholders[-1]['gi'].loc['core_cash_flow_change']['value'],
+                                      start = stakeholders[-1]['gi'].loc['core_cash_flow_start']['value'],
+                                      model = stakeholders[-1]['gi'].loc['core_cash_flow_model']['value'])
+    else:
+        stakeholders[-1]['ts']['core_cash_flow'] = input[name]['core_cash_flow'].copy()    
+
+    
 
 # after all inputs are loaded they can be accessed as list elements:
-stakeholders[0]['gi'].loc['r']['value']
+stakeholders[0]['gi'].loc['r']['value']             # input from "general info" table (gi)
+stakeholders[0]['ts']                               # input from "time series" table (ts)
+
+# check if some time series should be estimated by trend
+# for i, stakeholder in enumerate(stakeholders):
+#     print ('initializing {stakeholder}, {facility}'.format(
+#         stakeholder = stakeholders[i]['gi'].loc['company']['value'], 
+#         facility = stakeholders[i]['gi'].loc['facility']['value']))
+#     if 'year' not in stakeholders[i]['ts']:
+#         print ('adding time series...')
+#         stakeholders[i]['ts']['year'] = np.arange(stakeholders[i]['gi'].loc['last year']['value']+1)
+        
 
 """
 gi is general information table, and r value is called
