@@ -1,4 +1,4 @@
-ouz# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Created on Tue Sep 27 11:58:12 2022
 
@@ -343,7 +343,7 @@ ina.calculateCoreCashFlow(ina.CAPEX, ina.OPEX, ina_neto_prihod, ina.core_busines
 # run simulation
 for i, ts in enumerate(ina.time_steps):
     if i>0: ina.allowance_wallet[i] += ina.released_CO2[i-1]-ina.released_CO2[i]   #reduction is already included, this are the emissions
-# print (ina.allowance_wallet)
+print (ina.allowance_wallet)
 
 "----------------------------------------------------------------------------------------------------------"
 NEXE = Industry()
@@ -371,8 +371,10 @@ NEXE.calculateCoreCashFlow(NEXE.CAPEX, NEXE.OPEX, NEXE_neto_prihod, NEXE.core_bu
 # print (NEXE.allowance_wallet)        # wallet is initialized for all steps when CO2_reduced is set
 # run simulation
 for i, ts in enumerate(NEXE.time_steps):
-    if i>0: NEXE.allowance_wallet[i] += NEXE.released_CO2[i-1]-NEXE.released_CO2[i]   #reduction is already included, this are the emissions
-# print (NEXE.allowance_wallet)
+    if i>0: 
+        NEXE.allowance_wallet[i] += NEXE.released_CO2[i-1]-NEXE.released_CO2[i]   #reduction is already included, this are the emissions
+        # ukoliko se radi o povecanju emisija, treba mintati tokene, devalvirati cijenu
+print (NEXE.allowance_wallet)
 
 
 """
@@ -422,13 +424,13 @@ for name, sheet in input.items():
         facility = stakeholders[-1]['gi'].loc['facility']['value']))
     if last_year is None: last_year = np.arange(stakeholders[-1]['gi'].loc['last year']['value']+1)
     if 'year' not in input[name][ts_columns].dropna(axis='columns'):
-        print ('initializing years...')
+        #print ('initializing years...')
         stakeholders[-1]['ts']['year'] = last_year
     else:
         stakeholders[-1]['ts'] = input[name][ts_columns].dropna(axis='columns')
     
     if 'released_CO2' not in input[name][ts_columns].dropna(axis='columns'):
-        print ('creating released_CO2 variables...')
+        #print ('creating released_CO2 variables...')
         stakeholders[-1]['ts']['released_CO2'] = e.trendModel(time_series = last_year,
                                       initial = stakeholders[-1]['gi'].loc['released_CO2_initial']['value'], 
                                       change =  stakeholders[-1]['gi'].loc['released_CO2_change']['value'],
@@ -438,7 +440,7 @@ for name, sheet in input.items():
         stakeholders[-1]['ts']['released_CO2'] = input[name]['released_CO2'].copy()
        
     if 'reduced_CO2' not in input[name][ts_columns].dropna(axis='columns'):
-        print ('creating reduced_CO2 variables...')
+        #print ('creating reduced_CO2 variables...')
         stakeholders[-1]['ts']['reduced_CO2'] = e.trendModel(time_series = last_year,
                                       initial = stakeholders[-1]['gi'].loc['reduced_CO2_initial']['value'], 
                                       change =  stakeholders[-1]['gi'].loc['reduced_CO2_change']['value'],
@@ -448,7 +450,7 @@ for name, sheet in input.items():
         stakeholders[-1]['ts']['reduced_CO2'] = input[name]['reduced_CO2'].copy()
         
     if 'free_allowances' not in input[name][ts_columns].dropna(axis='columns'):
-        print ('creating free_allowances variables...')
+        #print ('creating free_allowances variables...')
         stakeholders[-1]['ts']['free_allowances'] = e.trendModel(time_series = last_year, 
                                       initial = stakeholders[-1]['gi'].loc['free_allowances_initial']['value'], 
                                       change =  stakeholders[-1]['gi'].loc['free_allowances_change']['value'],
@@ -461,7 +463,7 @@ for name, sheet in input.items():
                                                          stakeholders[-1]['ts']['free_allowances'])
        
     if 'core_cash_flow' not in input[name][ts_columns].dropna(axis='columns'):
-        print ('creating core_cash_flow variables...')
+        #print ('creating core_cash_flow variables...')
         stakeholders[-1]['ts']['core_cash_flow'] = e.trendModel(time_series = last_year,
                                       initial = stakeholders[-1]['gi'].loc['core_cash_flow_initial']['value'], 
                                       change =  stakeholders[-1]['gi'].loc['core_cash_flow_change']['value'],
