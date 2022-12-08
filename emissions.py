@@ -72,6 +72,22 @@ class Emissions(object):
     """
     
     @property
+    def name(self):
+        return self._name
+    
+    @name.setter
+    def name(self, stakeholder_name):
+        self._name = stakeholder_name
+        
+    @property
+    def facility(self):
+        return self._facility
+    
+    @facility.setter
+    def facility(self, facility):
+        self._facility = facility
+    
+    @property
     def released_CO2(self):
         return self._released_CO2
     
@@ -376,7 +392,6 @@ for i, ts in enumerate(NEXE.time_steps):
         # ukoliko se radi o povecanju emisija, treba mintati tokene, devalvirati cijenu
 print (NEXE.allowance_wallet)
 
-
 """
 example of GBM fitting
 - number of values should be checked in historical data (h_CO2_price)) in order to correctly define dt
@@ -415,21 +430,26 @@ ts_columns = ['year','released_CO2','reduced_CO2','free_allowances','core_cash_f
 last_year = None
 for name, sheet in input.items():
     #print (name, sheet)
+    input_gi = input[name][gi_columns].dropna(axis='rows', how = 'all').copy().set_index('variable')
+    input_ts = input[name][ts_columns].dropna(axis='rows', how = 'all').copy().dropna(axis='columns', how = 'all')
+    
     stakeholders.append({'sheet_name':name, 
-                        'gi' : input[name][gi_columns].copy().dropna(axis='rows').set_index('variable'), 
-                        'ts' : pd.DataFrame(columns = ts_columns)
-                    })
+                        'gi' : input_gi, 
+                        'ts' : input_ts
+                        })
     print ('\n initializing {stakeholder}, {facility}'.format(
-        stakeholder = stakeholders[-1]['gi'].loc['company']['value'], 
-        facility = stakeholders[-1]['gi'].loc['facility']['value']))
+        stakeholder = input_gi.loc['company']['value'], 
+        facility = input_gi.loc['facility']['value']))
+    
     if last_year is None: last_year = np.arange(stakeholders[-1]['gi'].loc['last year']['value']+1)
-    if 'year' not in input[name][ts_columns].dropna(axis='columns'):
+    
+    
+    if 'year' not in input_ts:
         #print ('initializing years...')
         stakeholders[-1]['ts']['year'] = last_year
-    else:
-        stakeholders[-1]['ts'] = input[name][ts_columns].dropna(axis='columns')
+
     
-    if 'released_CO2' not in input[name][ts_columns].dropna(axis='columns'):
+    if 'released_CO2' not in input_ts:
         #print ('creating released_CO2 variables...')
         stakeholders[-1]['ts']['released_CO2'] = e.trendModel(time_series = last_year,
                                       initial = stakeholders[-1]['gi'].loc['released_CO2_initial']['value'], 
@@ -437,9 +457,9 @@ for name, sheet in input.items():
                                       start = stakeholders[-1]['gi'].loc['released_CO2_start']['value'],
                                       model = stakeholders[-1]['gi'].loc['released_CO2_model']['value'])
     else:
-        stakeholders[-1]['ts']['released_CO2'] = input[name]['released_CO2'].copy()
+        stakeholders[-1]['ts']['released_CO2'] = input_ts['released_CO2'].copy()
        
-    if 'reduced_CO2' not in input[name][ts_columns].dropna(axis='columns'):
+    if 'reduced_CO2' not in input_ts:
         #print ('creating reduced_CO2 variables...')
         stakeholders[-1]['ts']['reduced_CO2'] = e.trendModel(time_series = last_year,
                                       initial = stakeholders[-1]['gi'].loc['reduced_CO2_initial']['value'], 
@@ -447,9 +467,9 @@ for name, sheet in input.items():
                                       start = stakeholders[-1]['gi'].loc['reduced_CO2_start']['value'],
                                       model = stakeholders[-1]['gi'].loc['reduced_CO2_model']['value'])
     else:
-        stakeholders[-1]['ts']['reduced_CO2'] = input[name]['reduced_CO2'].copy()
+        stakeholders[-1]['ts']['reduced_CO2'] = input_ts['reduced_CO2'].copy()
         
-    if 'free_allowances' not in input[name][ts_columns].dropna(axis='columns'):
+    if 'free_allowances' not in input_ts:
         #print ('creating free_allowances variables...')
         stakeholders[-1]['ts']['free_allowances'] = e.trendModel(time_series = last_year, 
                                       initial = stakeholders[-1]['gi'].loc['free_allowances_initial']['value'], 
@@ -457,12 +477,13 @@ for name, sheet in input.items():
                                       start = stakeholders[-1]['gi'].loc['free_allowances_start']['value'],
                                       model = stakeholders[-1]['gi'].loc['free_allowances_model']['value'])
     else:
-        stakeholders[-1]['ts']['free_allowances'] = input[name]['free_allowances'].copy()
+        stakeholders[-1]['ts']['free_allowances'] = input_ts['free_allowances'].copy()
+    
     # free allowances may not be less than zero
     stakeholders[-1]['ts']['free_allowances'] = np.where(stakeholders[-1]['ts']['free_allowances'] < 0, 0, 
                                                          stakeholders[-1]['ts']['free_allowances'])
        
-    if 'core_cash_flow' not in input[name][ts_columns].dropna(axis='columns'):
+    if 'core_cash_flow' not in input_ts:
         #print ('creating core_cash_flow variables...')
         stakeholders[-1]['ts']['core_cash_flow'] = e.trendModel(time_series = last_year,
                                       initial = stakeholders[-1]['gi'].loc['core_cash_flow_initial']['value'], 
@@ -470,26 +491,36 @@ for name, sheet in input.items():
                                       start = stakeholders[-1]['gi'].loc['core_cash_flow_start']['value'],
                                       model = stakeholders[-1]['gi'].loc['core_cash_flow_model']['value'])
     else:
-        stakeholders[-1]['ts']['core_cash_flow'] = input[name]['core_cash_flow'].copy()    
+        stakeholders[-1]['ts']['core_cash_flow'] = input_ts['core_cash_flow'].copy()    
 
-    
-
-# after all inputs are loaded they can be accessed as list elements:
-stakeholders[0]['gi'].loc['r']['value']             # input from "general info" table (gi)
-stakeholders[0]['ts']                               # input from "time series" table (ts)
-
-# check if some time series should be estimated by trend
-# for i, stakeholder in enumerate(stakeholders):
-#     print ('initializing {stakeholder}, {facility}'.format(
-#         stakeholder = stakeholders[i]['gi'].loc['company']['value'], 
-#         facility = stakeholders[i]['gi'].loc['facility']['value']))
-#     if 'year' not in stakeholders[i]['ts']:
-#         print ('adding time series...')
-#         stakeholders[i]['ts']['year'] = np.arange(stakeholders[i]['gi'].loc['last year']['value']+1)
-        
-
-"""
+"""    
 gi is general information table, and r value is called
 ts is time series value
+after all inputs are loaded they can be accessed as list elements:
+stakeholders[0]['gi'].loc['r']['value']             # input from "general info" table (gi)
+stakeholders[0]['ts']                               # input from "time series" table (ts)
 """
+" initialize kust of stakeholder objects"
+st = []
+for stakeholder in stakeholders:
+        # (1) initialize stakeholder
+    s = Industry()
+    
+        # (2) initialize timeseries of:
+        #   - released_CO2 (emissions)
+        #   - reduced_CO2 (stored, sequestered)
+        #   - free_allowances (to calculate penalties charged by EUA_price)
+    s.name = stakeholder['gi'].loc['company'].value
+    s.facility = stakeholder['gi'].loc['facility'].value
+    s.released_CO2 = stakeholder['ts']['released_CO2']
+    s.reduced_CO2 = stakeholder['ts']['reduced_CO2']
+    s.free_allowances = stakeholder['ts']['free_allowances']
+    st.append(s)
+
+# run simulation
+for i, ts in enumerate(st[0].time_steps):
+    for stakeholder in st:
+        if i>0: stakeholder.allowance_wallet[i] += stakeholder.released_CO2[i-1]-stakeholder.released_CO2[i]   #reduction is already included, this are the emissions
+
+
 
