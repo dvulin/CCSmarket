@@ -24,7 +24,7 @@ class Emissions(object):
         self.core_business_r = cbr          # core business interest rate
         self.investment_potential = ip      # money that can be available for new investments
         self._released_CO2 = None
-        self._reduced_CO2 = None
+        self._removed_CO2 = None
         self._core_cash_flow = None
         self._money_balance = None    # money balance (used for more specific profitability analysis)
         self._allowance_wallet = 0    # array, CO2 for trading (1t CO2 in wallet = 1 token)
@@ -99,13 +99,13 @@ class Emissions(object):
                                  self.domestic_CO2_price*(values/self.token_number.cumsum()))
         
     @property
-    def reduced_CO2(self):
-        return self._reduced_CO2
+    def removed_CO2(self):
+        return self._removed_CO2
     
-    @reduced_CO2.setter
-    def reduced_CO2(self, values):
-        self._allowance_wallet += values
-        self._reduced_CO2 = values
+    @removed_CO2.setter
+    def removed_CO2(self, values):
+        # self._allowance_wallet += values da li želimo dodavati
+        self._removed_CO2 = values
         self.setDomesticCO2Price(self.domestic_CO2_price + 
                                 self.domestic_CO2_price*(values/self.token_number.cumsum()))
            
@@ -186,7 +186,7 @@ class Emissions(object):
             self._free_allowances[time_step] += tonnes_CO2
             self._money_balance[time_step] -= tonnes_CO2*unit_price
         return ("""bought {tCO2} allowances for {up} per 1t of CO2.
-                    balance reduced for {total} at timestep {ts}.
+                    balance removed for {total} at timestep {ts}.
                 """.format(tCO2 = tonnes_CO2, up = unit_price, total = tonnes_CO2*unit_price, ts = time_step))    
     
     @property
@@ -325,72 +325,72 @@ e.setAllowanceEUAPrice(e.trendModel(time_series = e.time_steps,
 
 
 "----------------------------------------------------------------------------------------------------------"
-# (1) initialize stakeholder
-ina = Industry()
+# # (1) initialize stakeholder
+# ina = Industry()
 
-# (2) initialize timeseries of:
-#   - released_CO2 (emissions)
-#   - reduced_CO2 (stored, sequestered)
-#   - free_allowances (to calculate penalties charged by EUA_price)
+# # (2) initialize timeseries of:
+# #   - released_CO2 (emissions)
+# #   - removed_CO2 (stored, sequestered)
+# #   - free_allowances (to calculate penalties charged by EUA_price)
 
-ina.released_CO2 = e.trendModel(time_series = ina.time_steps, 
-                              initial = 1.2e6, 
-                              change = -0.1, 
-                              start = 0, model = 'percent')
-ina.reduced_CO2 = e.trendModel(time_series = ina.time_steps, 
-                              initial = 0.15e6, 
-                              change = 0.1, 
-                              start = 0, model = 'percent')
-ina.free_allowances = e.trendModel(time_series = ina.time_steps, 
-                              initial = 300000, 
-                              change = -0.1, 
-                              start = 0, model = 'percent')
+# ina.released_CO2 = e.trendModel(time_series = ina.time_steps, 
+#                               initial = 1.2e6, 
+#                               change = -0.1, 
+#                               start = 0, model = 'percent')
+# ina.removed_CO2 = e.trendModel(time_series = ina.time_steps, 
+#                               initial = 0.15e6, 
+#                               change = 0.1, 
+#                               start = 0, model = 'percent')
+# ina.free_allowances = e.trendModel(time_series = ina.time_steps, 
+#                               initial = 300000, 
+#                               change = -0.1, 
+#                               start = 0, model = 'percent')
 
 
-# iz https://www.poslovni.hr/kompanije/neto-dobit-ine-u-prvom-kvartalu-znatno-veca-nego-lani-4334651
-ina_neto_prihod = 4*6.24E9/7.54                 #eur, u 2022., na tamelju kvartala
-ina.CAPEX = 4*846e6/7.54           
-ina_neto_dobit = 4*586e6/7.54                   # na temelju kvartalne dobiti
-ina.OPEX = (ina_neto_prihod-ina_neto_dobit-ina.CAPEX)
-ina.core_business_r = 0.09
-ina.calculateCoreCashFlow(ina.CAPEX, ina.OPEX, ina_neto_prihod, ina.core_business_r)
+# # iz https://www.poslovni.hr/kompanije/neto-dobit-ine-u-prvom-kvartalu-znatno-veca-nego-lani-4334651
+# ina_neto_prihod = 4*6.24E9/7.54                 #eur, u 2022., na tamelju kvartala
+# ina.CAPEX = 4*846e6/7.54           
+# ina_neto_dobit = 4*586e6/7.54                   # na temelju kvartalne dobiti
+# ina.OPEX = (ina_neto_prihod-ina_neto_dobit-ina.CAPEX)
+# ina.core_business_r = 0.09
+# ina.calculateCoreCashFlow(ina.CAPEX, ina.OPEX, ina_neto_prihod, ina.core_business_r)
 
-# print (ina.allowance_wallet)        # wallet is initialized for all steps when CO2_reduced is set
+# # print (ina.allowance_wallet)        # wallet is initialized for all steps when CO2_removed is set
+# # run simulation
+# for i, ts in enumerate(ina.time_steps):
+#     if i>0: ina.allowance_wallet[i] += ina.released_CO2[i-1]-ina.released_CO2[i]   #reduction is already included, this are the emissions
+# print (ina.allowance_wallet)
+
+# "----------------------------------------------------------------------------------------------------------"
+# NEXE = Industry()
+# NEXE.released_CO2 = e.trendModel(time_series = NEXE.time_steps, 
+#                               initial = 0.7e6, 
+#                               change =  0.005, 
+#                               start = 0, model = 'percent')
+# NEXE.removed_CO2 = e.trendModel(start = 3, time_series = NEXE.time_steps, 
+#                               initial = 0.15e6, 
+#                               change = 0.0, 
+#                               model = 'percent')
+# NEXE.free_allowances = e.trendModel(time_series = NEXE.time_steps, 
+#                               initial = 250000, 
+#                               change = -0.1, 
+#                               start = 0, model = 'percent')
+
+# # iz https://www.poslovni.hr/kompanije/neto-dobit-ine-u-prvom-kvartalu-znatno-veca-nego-lani-4334651
+# NEXE_neto_prihod = 1*6.24E9/7.54                 #eur, u 2022., na tamelju kvartala
+# NEXE.CAPEX = 0.1*846e6/7.54           
+# NEXE_neto_dobit = 0.1*586e6/7.54                   # na temelju kvartalne dobiti
+# NEXE.OPEX = (NEXE_neto_prihod-NEXE_neto_dobit-ina.CAPEX)
+# NEXE.core_business_r = 0.08
+# NEXE.calculateCoreCashFlow(NEXE.CAPEX, NEXE.OPEX, NEXE_neto_prihod, NEXE.core_business_r)
+
+# print (NEXE.allowance_wallet)        # wallet is initialized for all steps when CO2_removed is set
 # run simulation
-for i, ts in enumerate(ina.time_steps):
-    if i>0: ina.allowance_wallet[i] += ina.released_CO2[i-1]-ina.released_CO2[i]   #reduction is already included, this are the emissions
-print (ina.allowance_wallet)
-
-"----------------------------------------------------------------------------------------------------------"
-NEXE = Industry()
-NEXE.released_CO2 = e.trendModel(time_series = NEXE.time_steps, 
-                              initial = 0.7e6, 
-                              change =  0.005, 
-                              start = 0, model = 'percent')
-NEXE.reduced_CO2 = e.trendModel(start = 3, time_series = NEXE.time_steps, 
-                              initial = 0.15e6, 
-                              change = 0.0, 
-                              model = 'percent')
-NEXE.free_allowances = e.trendModel(time_series = NEXE.time_steps, 
-                              initial = 250000, 
-                              change = -0.1, 
-                              start = 0, model = 'percent')
-
-# iz https://www.poslovni.hr/kompanije/neto-dobit-ine-u-prvom-kvartalu-znatno-veca-nego-lani-4334651
-NEXE_neto_prihod = 1*6.24E9/7.54                 #eur, u 2022., na tamelju kvartala
-NEXE.CAPEX = 0.1*846e6/7.54           
-NEXE_neto_dobit = 0.1*586e6/7.54                   # na temelju kvartalne dobiti
-NEXE.OPEX = (NEXE_neto_prihod-NEXE_neto_dobit-ina.CAPEX)
-NEXE.core_business_r = 0.08
-NEXE.calculateCoreCashFlow(NEXE.CAPEX, NEXE.OPEX, NEXE_neto_prihod, NEXE.core_business_r)
-
-# print (NEXE.allowance_wallet)        # wallet is initialized for all steps when CO2_reduced is set
-# run simulation
-for i, ts in enumerate(NEXE.time_steps):
-    if i>0: 
-        NEXE.allowance_wallet[i] += NEXE.released_CO2[i-1]-NEXE.released_CO2[i]   #reduction is already included, this are the emissions
-        # ukoliko se radi o povecanju emisija, treba mintati tokene, devalvirati cijenu
-print (NEXE.allowance_wallet)
+# for i, ts in enumerate(NEXE.time_steps):
+#     if i>0: 
+#         NEXE.allowance_wallet[i] += NEXE.released_CO2[i-1]-NEXE.released_CO2[i]   #reduction is already included, this are the emissions
+#         # ukoliko se radi o povecanju emisija, treba mintati tokene, devalvirati cijenu
+# print (NEXE.allowance_wallet)
 
 """
 example of GBM fitting
@@ -425,7 +425,7 @@ import pandas as pd
 input = pd.read_excel('input.xlsx', sheet_name=None)
 stakeholders = []
 gi_columns = ['variable', 'value', 'comment']
-ts_columns = ['year','released_CO2','reduced_CO2','free_allowances','core_cash_flow']
+ts_columns = ['year','released_CO2','removed_CO2','free_allowances','core_cash_flow']
 
 last_year = None
 for name, sheet in input.items():
@@ -459,15 +459,15 @@ for name, sheet in input.items():
     else:
         stakeholders[-1]['ts']['released_CO2'] = input_ts['released_CO2'].copy()
        
-    if 'reduced_CO2' not in input_ts:
-        #print ('creating reduced_CO2 variables...')
-        stakeholders[-1]['ts']['reduced_CO2'] = e.trendModel(time_series = last_year,
-                                      initial = stakeholders[-1]['gi'].loc['reduced_CO2_initial']['value'], 
-                                      change =  stakeholders[-1]['gi'].loc['reduced_CO2_change']['value'],
-                                      start = stakeholders[-1]['gi'].loc['reduced_CO2_start']['value'],
-                                      model = stakeholders[-1]['gi'].loc['reduced_CO2_model']['value'])
+    if 'removed_CO2' not in input_ts:
+        #print ('creating removed_CO2 variables...')
+        stakeholders[-1]['ts']['removed_CO2'] = e.trendModel(time_series = last_year,
+                                      initial = stakeholders[-1]['gi'].loc['removed_CO2_initial']['value'], 
+                                      change =  stakeholders[-1]['gi'].loc['removed_CO2_change']['value'],
+                                      start = stakeholders[-1]['gi'].loc['removed_CO2_start']['value'],
+                                      model = stakeholders[-1]['gi'].loc['removed_CO2_model']['value'])
     else:
-        stakeholders[-1]['ts']['reduced_CO2'] = input_ts['reduced_CO2'].copy()
+        stakeholders[-1]['ts']['removed_CO2'] = input_ts['removed_CO2'].copy()
         
     if 'free_allowances' not in input_ts:
         #print ('creating free_allowances variables...')
@@ -508,19 +508,19 @@ for stakeholder in stakeholders:
     
         # (2) initialize timeseries of:
         #   - released_CO2 (emissions)
-        #   - reduced_CO2 (stored, sequestered)
+        #   - removed_CO2 (stored, sequestered)
         #   - free_allowances (to calculate penalties charged by EUA_price)
     s.name = stakeholder['gi'].loc['company'].value
     s.facility = stakeholder['gi'].loc['facility'].value
     s.released_CO2 = stakeholder['ts']['released_CO2']
-    s.reduced_CO2 = stakeholder['ts']['reduced_CO2']
+    s.removed_CO2 = stakeholder['ts']['removed_CO2']
     s.free_allowances = stakeholder['ts']['free_allowances']
     st.append(s)
 
-# run simulation
-for i, ts in enumerate(st[0].time_steps):
-    for stakeholder in st:
-        if i>0: stakeholder.allowance_wallet[i] += stakeholder.released_CO2[i-1]-stakeholder.released_CO2[i]   #reduction is already included, this are the emissions
+# # run simulation
+# for i, ts in enumerate(st[0].time_steps):
+#     for stakeholder in st:
+#         if i>0: stakeholder.allowance_wallet[i] += stakeholder.released_CO2[i-1]-stakeholder.released_CO2[i]   #reduction is already included, this are the emissions
 
 
 
