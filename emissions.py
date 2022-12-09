@@ -14,8 +14,9 @@ class Emissions(object):
     domestic_CO2_price = 80.0               # domestic CO2 price should decrease as sellers appear
     trading_volume = []                     # tCO2 = trading volume
     time_steps = None
-    trading_history = None                  # all history of trades ([timestep, volume, price])
+    trading_history = []                  # all history of trades ([timestep, volume, price])
     token_number = 0
+    bid = 0
     
     def __init__(self, ts = np.arange(0,30), cbr = 0.1, ip = 0, mb = 0):
         """
@@ -28,7 +29,6 @@ class Emissions(object):
         self._core_cash_flow = None
         self._money_balance = None    # money balance (used for more specific profitability analysis)
         self._allowance_wallet = 0    # array, CO2 for trading (1t CO2 in wallet = 1 token)
-              
         self.setTimeSteps(ts)
       
     @classmethod
@@ -57,6 +57,12 @@ class Emissions(object):
     @classmethod
     def updateTokenNumber(cls, values):
         cls.token_number += values
+        
+    @classmethod
+    def setBid(cls, quantity):
+        cls.bid += quantity
+ 
+    
         
     """
     @property
@@ -104,7 +110,7 @@ class Emissions(object):
     
     @removed_CO2.setter
     def removed_CO2(self, values):
-        # self._allowance_wallet += values da li želimo dodavati
+        self._allowance_wallet += values
         self._removed_CO2 = values
         self.setDomesticCO2Price(self.domestic_CO2_price + 
                                 self.domestic_CO2_price*(values/self.token_number.cumsum()))
@@ -517,10 +523,19 @@ for stakeholder in stakeholders:
     s.free_allowances = stakeholder['ts']['free_allowances']
     st.append(s)
 
-# # run simulation
-# for i, ts in enumerate(st[0].time_steps):
-#     for stakeholder in st:
-#         if i>0: stakeholder.allowance_wallet[i] += stakeholder.released_CO2[i-1]-stakeholder.released_CO2[i]   #reduction is already included, this are the emissions
+# run simulation
+CO2_reduction = np.zeros(len(st))
+for i, ts in enumerate(st[0].time_steps):
+    transaction_table = pd.DataFrame(colums = ['seller', 'amount', 'buyer', 'amount', 'price'])
+    for j, stakeholder in enumerate(st):
+        if i>0:
+            CO2_reduction[j] = stakeholder.released_CO2[i-1]-stakeholder.released_CO2[i]
+            if CO2_reduction[j]>0:
+                stakeholder.allowance_wallet[i] += CO2_reduction[j]
+                #TODO: sort and sell tactics to be implemented
+            
+            
+        
 
 
 
