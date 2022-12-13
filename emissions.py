@@ -103,17 +103,32 @@ class Emissions(object):
         self._released_CO2 = values
         self.setDomesticCO2Price(self.domestic_CO2_price - 
                                  self.domestic_CO2_price*(values/self.token_number.cumsum()))
-        
+    
+    # removed CO2 is utilized or stored - it can lead to carbon-negative scenario
     @property
     def removed_CO2(self):
         return self._removed_CO2
     
     @removed_CO2.setter
     def removed_CO2(self, values):
-        self._allowance_wallet += values
+        # self._allowance_wallet += values
+        # depending on logic - it is commented because total reduced CO2 adds tokens to wallet
         self._removed_CO2 = values
         self.setDomesticCO2Price(self.domestic_CO2_price + 
                                 self.domestic_CO2_price*(values/self.token_number.cumsum()))
+        
+    # reduced CO2 is achieved through technology efficiency - it can only lead to zero-emissions
+    @property
+    def reduced_CO2(self):
+        return self._reduced_CO2
+    
+    @removed_CO2.setter
+    def reduced_CO2(self, values):
+        self._allowance_wallet += values
+        self._reduced_CO2 = values
+        self.setDomesticCO2Price(self.domestic_CO2_price + 
+                                self.domestic_CO2_price*(values/self.token_number.cumsum()))
+    
            
     @property
     def free_allowances(self):
@@ -518,21 +533,73 @@ for stakeholder in stakeholders:
         #   - free_allowances (to calculate penalties charged by EUA_price)
     s.name = stakeholder['gi'].loc['company'].value
     s.facility = stakeholder['gi'].loc['facility'].value
-    s.released_CO2 = stakeholder['ts']['released_CO2']
-    s.removed_CO2 = stakeholder['ts']['removed_CO2']
-    s.free_allowances = stakeholder['ts']['free_allowances']
+    s.released_CO2 = stakeholder['ts']['released_CO2'].to_numpy()
+    s.removed_CO2 = stakeholder['ts']['removed_CO2'].to_numpy()
+    s.free_allowances = stakeholder['ts']['free_allowances'].to_numpy()
+        # here we bring in CO2_reduced, and accordingly initial of wallet values are equal to CO2_reduced
+        # CO2 reduced is CO2_removed (i.e. stored, utilized etc.) plus reduction of CO2 emission (due to energy efficiency etc.)
+    s.reduced_CO2 = np.insert(-np.diff(s.released_CO2), 0, 0) + s.removed_CO2
+    s.allowance_wallet = s.reduced_CO2.copy()
+    s.allowance_wallet[s.allowance_wallet<0] = 0
     st.append(s)
-
+    
 # run simulation
-CO2_reduction = np.zeros(len(st))
+ts_columns = ['timestep', 'seller', 'buyer', 'amount', 'price']
+transaction_table = pd.DataFrame(columns = ts_columns)
+
 for i, ts in enumerate(st[0].time_steps):
-    transaction_table = pd.DataFrame(colums = ['seller', 'amount', 'buyer', 'amount', 'price'])
+    transaction_volume, tokens_available = np.zeros(len(st)), np.zeros(len(st))
     for j, stakeholder in enumerate(st):
-        if i>0:
-            CO2_reduction[j] = stakeholder.released_CO2[i-1]-stakeholder.released_CO2[i]
-            if CO2_reduction[j]>0:
-                stakeholder.allowance_wallet[i] += CO2_reduction[j]
-                #TODO: sort and sell tactics to be implemented
+        """ 
+        trading rules:
+        (1) transaction volume (volume available for trading) is equivalent of CO2 emissions. 
+        (2) free allowances are excluded from transaction volume (cannot trade with something given for free)
+        (3) tokens are generated if emissions are reduced either by energy/technology efficiency improvement, 
+            or by removal (CO2 storage, and/or utilization). 
+            The question is what happens if emissions are reduced because of decrease of production of respective facility
+        """
+        transaction_volume[j] = st[j].released_CO2[i]-st[j].free_allowances[j]
+        buyer_indices = np.argsort(transaction_volume)
+        tokens_available[j] = st[j].allowance_wallet.cumsum()[i]            # cumsum needed if some tokens are left from previous timestep
+    for buyer in (buyer_indices):
+        if transaction_volume[buyer] < 0:
+            for seller in (np.flip(buyer_indices)):
+                if tokens_available[seller]>transaction_volume[buyer]:
+                    # single transaction with largest seler
+                    # note the minus sign, because buyer has deficit of tokens (negative transaction_volume)
+                    st[seller].allowance_wallet[i] -= transaction_volume[buyer]
+                    st[buyer].allowance_wallet[i] += transaction_volume[buyer]
+                    transaction_table.loc[len(transaction_table.index)] = [i, st[seller].name + ' - ' + st[seller].facility, 
+                                                                           st[buyer].name + ' - ' + st[buyer].facility,
+                                                                           transaction_volume[buyer], 
+                                                                           st[seller].domestic_CO2_price[i]]
+                    transaction_volume[buyer] = 0
+                    break
+                else:
+                    # seller that did not accumulate enough tokens (cumsum of wallet values) can sell only
+                    #                       tokens generated in current timestep
+                    st[buyer].allowance_wallet[i] += st[seller].allowance_wallet[i]
+                    transaction_volume[buyer] += st[seller].allowance_wallet[i]
+                    transaction_table.loc[len(transaction_table.index)] = [i, st[seller].name + ' - ' + st[seller].facility, 
+                                                                           st[buyer].name + ' - ' + st[buyer].facility,
+                                                                           st[seller].allowance_wallet[i], 
+                                                                           st[seller].domestic_CO2_price[i]]
+                    st[seller].allowance_wallet[i] = 0
+                
+with pd.ExcelWriter("transaction_table.xlsx") as writer:
+    transaction_table.to_excel(writer, sheet_name = 'transactions', index = False)
+    st_names, st_released, st_reduced, st_free_allowances, st_wallet = [], [], [], [], []
+    for e in st:
+        pd.DataFrame({'released' : e.released_CO2,
+                      'reduced' : e.reduced_CO2,
+                      'removed' : e.removed_CO2,
+                      'allowance_wallet' : e.allowance_wallet                      
+                      }).to_excel(writer, sheet_name = e.name+'-'+e.facility, index = False)
+        
+
+    
+        
+                
             
             
         
