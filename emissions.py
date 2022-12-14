@@ -560,10 +560,12 @@ for i, ts in enumerate(st[0].time_steps):
         transaction_volume[j] = st[j].released_CO2[i]-st[j].free_allowances[j]
         buyer_indices = np.argsort(transaction_volume)
         tokens_available[j] = st[j].allowance_wallet.cumsum()[i]            # cumsum needed if some tokens are left from previous timestep
+    
     for buyer in (buyer_indices):
-        if transaction_volume[buyer] < 0:
+        if transaction_volume[buyer] > 0:                                   # maximum transactions are equal to penalized emissions
             for seller in (np.flip(buyer_indices)):
-                if tokens_available[seller]>transaction_volume[buyer] :
+                if  seller == buyer: break                                  # cannot trade with itself
+                elif tokens_available[seller]>transaction_volume[buyer]:
                     # single transaction with largest seler
                     # note the minus sign, because buyer has deficit of tokens (negative transaction_volume)
                     st[seller].allowance_wallet[i] -= transaction_volume[buyer]
