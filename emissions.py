@@ -122,14 +122,13 @@ class Emissions(object):
     def reduced_CO2(self):
         return self._reduced_CO2
     
-    @removed_CO2.setter
+    @reduced_CO2.setter
     def reduced_CO2(self, values):
         self._allowance_wallet += values
         self._reduced_CO2 = values
         self.setDomesticCO2Price(self.domestic_CO2_price + 
                                 self.domestic_CO2_price*(values/self.token_number.cumsum()))
     
-           
     @property
     def free_allowances(self):
       return self._free_alowances    # allowances are available for trading
@@ -564,7 +563,7 @@ for i, ts in enumerate(st[0].time_steps):
     for buyer in (buyer_indices):
         if transaction_volume[buyer] < 0:
             for seller in (np.flip(buyer_indices)):
-                if tokens_available[seller]>transaction_volume[buyer]:
+                if tokens_available[seller]>transaction_volume[buyer] :
                     # single transaction with largest seler
                     # note the minus sign, because buyer has deficit of tokens (negative transaction_volume)
                     st[seller].allowance_wallet[i] -= transaction_volume[buyer]
@@ -588,7 +587,6 @@ for i, ts in enumerate(st[0].time_steps):
                 
 with pd.ExcelWriter("transaction_table.xlsx") as writer:
     transaction_table.to_excel(writer, sheet_name = 'transactions', index = False)
-    st_names, st_released, st_reduced, st_free_allowances, st_wallet = [], [], [], [], []
     for e in st:
         pd.DataFrame({'released' : e.released_CO2,
                       'reduced' : e.reduced_CO2,
