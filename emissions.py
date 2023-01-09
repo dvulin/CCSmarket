@@ -442,7 +442,8 @@ optimal time window for similar analyses has been prposed in:
 # plt.legend(['p5', 'p25', 'p50', 'p75', 'p95'])
 
 import pandas as pd
-input = pd.read_excel('input.xlsx', sheet_name=None)
+#input = pd.read_excel('input.xlsx', sheet_name=None)
+input = pd.read_excel('C:\\Users\\dvulin\Downloads\\TOKEN PYTHON INPUT.xlsx', sheet_name=None)
 stakeholders = []
 gi_columns = ['variable', 'value', 'comment']
 ts_columns = ['year','released_CO2','removed_CO2','free_allowances','core_cash_flow']
@@ -495,7 +496,9 @@ for name, sheet in input.items():
                                       initial = stakeholders[-1]['gi'].loc['free_allowances_initial']['value'], 
                                       change =  stakeholders[-1]['gi'].loc['free_allowances_change']['value'],
                                       start = stakeholders[-1]['gi'].loc['free_allowances_start']['value'],
+                                      end = stakeholders[-1]['gi'].loc['free_allowances_end']['value'],
                                       model = stakeholders[-1]['gi'].loc['free_allowances_model']['value'])
+            
     else:
         stakeholders[-1]['ts']['free_allowances'] = input_ts['free_allowances'].copy()
     
