@@ -100,6 +100,12 @@ class Emissions(object):
     
     @released_CO2.setter
     def released_CO2(self, values):
+        if np.max(values)>1e8:
+            print ('Warning in released_CO2.setter: \n \
+                   some input (%s) tried to set released_CO2 to unreasonable number (>1e8). \n \
+                   All values set to zero' %(self._name))
+            values[values > 0.1] = 0 
+        values[values < 0] = 0                  # prevent negative CO2 released values
         self.updateTokenNumber(values)          # tokens are minted when more CO2 is emitted
         self._released_CO2 = values
         self.setDomesticCO2Price(self.domestic_CO2_price - 
@@ -311,6 +317,12 @@ class Emissions(object):
         if start > 0: p[:start] = 0
         for key, value in kwargs.items():
             if key == 'end': p[value:] = 0
+        if np.max(p>1e12):
+            print ('Warning in trendModel: \n \
+                   some calculation resulted in np.inf value. \n \
+                   All inf values set to zero.')
+            p[p==float('+inf')] = 0
+            p[p==float('-inf')] = 0
         return (p)       
             
 class Industry(Emissions):
@@ -445,9 +457,7 @@ optimal time window for similar analyses has been prposed in:
 # plt.legend(['p5', 'p25', 'p50', 'p75', 'p95'])
 
 import pandas as pd
-#input = pd.read_excel('input.xlsx', sheet_name=None)
-#input = pd.read_excel('C:\\Users\\dvulin\Downloads\\TOKEN PYTHON INPUT.xlsx', sheet_name=None)
-input = pd.read_excel('Z:\\Downloads\\TOKEN PYTHON INPUT.xlsx', sheet_name=None)
+input = pd.read_excel('input.xlsx', sheet_name=None)
 stakeholders = []
 gi_columns = ['variable', 'value', 'comment']
 ts_columns = ['year','released_CO2','removed_CO2','free_allowances','core_cash_flow']
@@ -597,11 +607,13 @@ for i, ts in enumerate(st[0].time_steps):
 with pd.ExcelWriter("transaction_table.xlsx") as writer:
     transaction_table.to_excel(writer, sheet_name = 'transactions', index = False)
     for e in st:
+        sheet_name = (e.name+'-'+e.facility)[:31]       # maximum len of sheet name is 31
         pd.DataFrame({'released' : e.released_CO2,
                       'reduced' : e.reduced_CO2,
                       'removed' : e.removed_CO2,
-                      'allowance_wallet' : e.allowance_wallet                      
-                      }).to_excel(writer, sheet_name = e.name+'-'+e.facility, index = False)
+                      'allowance_wallet' : e.allowance_wallet,
+                      'wallet cumulative' : e.allowance_wallet.cumsum()
+                      }).to_excel(writer, sheet_name = sheet_name, index = False)
         
 
     
