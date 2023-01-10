@@ -91,6 +91,7 @@ class Emissions(object):
     
     @facility.setter
     def facility(self, facility):
+        if facility != facility: facility = '' # efficiently checks if facility is missing (NaN) value
         self._facility = facility
     
     @property
@@ -281,7 +282,7 @@ class Emissions(object):
         mu = m+v/2       
         return (mu, sigma)
         
-    def trendModel(self, time_series, initial, change, start = 0, model = 'linear'):
+    def trendModel(self, time_series, initial, change, start = 0, model = 'linear', **kwargs):
         """
         Parameters
         ----------
@@ -308,6 +309,8 @@ class Emissions(object):
                 p.append(initial+change*(i-start))
         p = np.array(p)
         if start > 0: p[:start] = 0
+        for key, value in kwargs.items():
+            if key == 'end': p[value:] = 0
         return (p)       
             
 class Industry(Emissions):
@@ -443,7 +446,8 @@ optimal time window for similar analyses has been prposed in:
 
 import pandas as pd
 #input = pd.read_excel('input.xlsx', sheet_name=None)
-input = pd.read_excel('C:\\Users\\dvulin\Downloads\\TOKEN PYTHON INPUT.xlsx', sheet_name=None)
+#input = pd.read_excel('C:\\Users\\dvulin\Downloads\\TOKEN PYTHON INPUT.xlsx', sheet_name=None)
+input = pd.read_excel('Z:\\Downloads\\TOKEN PYTHON INPUT.xlsx', sheet_name=None)
 stakeholders = []
 gi_columns = ['variable', 'value', 'comment']
 ts_columns = ['year','released_CO2','removed_CO2','free_allowances','core_cash_flow']
@@ -535,9 +539,9 @@ for stakeholder in stakeholders:
         #   - free_allowances (to calculate penalties charged by EUA_price)
     s.name = stakeholder['gi'].loc['company'].value
     s.facility = stakeholder['gi'].loc['facility'].value
-    s.released_CO2 = stakeholder['ts']['released_CO2'].to_numpy()
-    s.removed_CO2 = stakeholder['ts']['removed_CO2'].to_numpy()
-    s.free_allowances = stakeholder['ts']['free_allowances'].to_numpy()
+    s.released_CO2 = stakeholder['ts']['released_CO2'].to_numpy(dtype='float32')
+    s.removed_CO2 = stakeholder['ts']['removed_CO2'].to_numpy(dtype='float32')
+    s.free_allowances = stakeholder['ts']['free_allowances'].to_numpy(dtype='float32')
         # here we bring in CO2_reduced, and accordingly initial of wallet values are equal to CO2_reduced
         # CO2 reduced is CO2_removed (i.e. stored, utilized etc.) plus reduction of CO2 emission (due to energy efficiency etc.)
     s.reduced_CO2 = np.insert(-np.diff(s.released_CO2), 0, 0) + s.removed_CO2
@@ -560,7 +564,7 @@ for i, ts in enumerate(st[0].time_steps):
             or by removal (CO2 storage, and/or utilization). 
             The question is what happens if emissions are reduced because of decrease of production of respective facility
         """
-        transaction_volume[j] = st[j].released_CO2[i]-st[j].free_allowances[j]
+        transaction_volume[j] = st[j].released_CO2[i]-st[j].free_allowances[i]
         buyer_indices = np.argsort(transaction_volume)
         tokens_available[j] = st[j].allowance_wallet.cumsum()[i]            # cumsum needed if some tokens are left from previous timestep
     
